@@ -113,6 +113,7 @@ mainMenu () {
   then
     HELP="<span color='$help_color'>${upload}: Upload | ${save}: No Upload</span>"
     menu=$(echo -e "< Exit\n---\n"$STATE_RECORDING"" | _rofi -dmenu -u 2 -p "teiler > ")
+    echo "$menu" >> ~/teiler.log # debug
     val=$?
     if [[ $val -eq 1 ]]
     then
@@ -123,15 +124,16 @@ mainMenu () {
     fi
   elif [[ -z "$STATE_RECORDING" ]]
   then
-    menu=$(echo -e "< Exit\n---\n1 [ Screenshots ]>\n2 [ Screencasts ]>\n3 [ History ]>\n---\n4 Pastebin Text from Clipboard" | _rofi -dmenu -p "teiler > ")
+    menu=$(echo -e "< Exit\n---\n1 [ Screenshots ]>\n2 [ Screencasts ]>\n3 [ Recognition ]>\n4 [ History ]>\n---\n5 Pastebin Text from Clipboard" | _rofi -dmenu -p "teiler > ")
     val=$?
     if [[ $val -eq 0 ]]
     then
       case "${menu}" in
         "1 [ Screenshots ]>") screenshotMenu;;
         "2 [ Screencasts ]>") askPrompt;;
-        "3 [ History ]>") uploadMenu;;
-        "4 Pastebin Text from Clipboard") export filename="${paste_filemask}" && clipCmd && teiler_helper --upload text "${filename}";;
+        "3 [ Recognition ]>") recognitionMenu;;
+        "4 [ History ]>") uploadMenu;;
+        "5 Pastebin Text from Clipboard") export filename="${paste_filemask}" && clipCmd && teiler_helper --upload text "${filename}";;
         "< Exit") exit;;
       esac
     elif [[ $val -eq 1 ]]
@@ -153,31 +155,46 @@ screenshotMenu () {
         "2 Fullscreen") mode="fullscreenAll"; desc="Monitor";;
         "3 Area") mode="area"; desc="Area";;
         "< Return to Main Menu") mainMenu;;
-      esac
+    esac
     if [[ $rofi_exit -eq 10 ]]; then
         delayPrompt
-        if [[ $delay == "0" ]]; then maimCmd nodelay $mode "${filename}" && cd "${img_path}" && teiler_helper --upload image "${filename}" && exit
-        else notify-send -a "teiler" -t 1000 "teiler" "Taking Screenshot in "$delay" seconds"; maimCmd delay $mode "${filename}" && cd "${img_path}" && teiler_helper --upload image "${filename}" && exit
+        if [[ $delay == "0" ]]; then maimCmd $mode "${filename}" && cd "${img_path}" && teiler_helper --upload image "${filename}" && exit
+        else notify-send -a "teiler" -t 1000 "teiler" "Taking Screenshot in "$delay" seconds"; maimCmd $mode "${filename}" && cd "${img_path}" && teiler_helper --upload image "${filename}" && exit
         fi
     elif [[ $rofi_exit -eq 11 ]]; then
         delayPrompt
-        if [[ $delay == "0" ]]; then maimCmd nodelay $mode "${filename}" && exit
-        else notify-send -a "teiler" -t 1000 "teiler" "Taking Screenshot in "$delay" seconds"; maimCmd delay $mode "${filename}"
+        if [[ $delay == "0" ]]; then maimCmd $mode "${filename}" && exit
+        else notify-send -a "teiler" -t 1000 "teiler" "Taking Screenshot in "$delay" seconds"; maimCmd $mode "${filename}"
         fi
     elif [[ $rofi_exit -eq 1 ]]; then
         exit
     elif [[ $rofi_exit -eq 0 ]]; then
         delayPrompt
         if [[ $always_ul == "1" ]]; then
-            if [[ $delay == "0" ]]; then maimCmd nodelay $mode "${filename}" && cd "${img_path}" && teiler_helper --upload image "${filename}" && exit
-            else notify-send -a "teiler" -t 1000 "teiler" "Taking Screenshot in "$delay" seconds"; maimCmd delay $mode "${filename}" && cd "${img_path}" && teiler_helper --upload image "${filename}" && exit
+            if [[ $delay == "0" ]]; then maimCmd $mode "${filename}" && cd "${img_path}" && teiler_helper --upload image "${filename}" && exit
+            else notify-send -a "teiler" -t 1000 "teiler" "Taking Screenshot in "$delay" seconds"; maimCmd $mode "${filename}" && cd "${img_path}" && teiler_helper --upload image "${filename}" && exit
             fi
         elif [[ $always_ul == "0" ]]; then
-            if [[ $delay == "0" ]]; then maimCmd nodelay $mode "${filename}" && exit
-            else notify-send -a "teiler" -t 1000 "teiler" "Taking Screenshot in "$delay" seconds"; maimCmd delay $mode "${filename}"
+            if [[ $delay == "0" ]]; then maimCmd $mode "${filename}" && exit
+            else notify-send -a "teiler" -t 1000 "teiler" "Taking Screenshot in "$delay" seconds"; maimCmd $mode "${filename}" && exit
             fi
         fi
     fi
+}
+
+recognitionMenu () {
+    mode="area"; desc="Area"
+    menu=$(echo -e "< Return to Main Menu\n---\n1 Colored on White\n2 Colored on Black" | _rofi -dmenu -p "Colors > ") 
+    case "${menu}" in
+        "1 Colored on White") colors="whiteback";;
+        "2 Colored on Black") colors="blackback";;
+        "< Return to Main Menu") mainMenu;;
+    esac
+    delayPrompt
+    if [[ $delay != "0" ]]; then
+        notify-send -a "teiler" -t 1000 "teiler" "Recognize in "$delay" seconds";
+    fi
+    maimCmd $mode - | tesseractCmd $colors;
 }
 
 test_xrandr () {
@@ -337,6 +354,15 @@ ffmpegCmd () {
     fi
 }
 
+tesseractCmd () {
+    if [[ $1 == "whiteback" ]]; then
+        tesseract - - -c page_separator="" | xclip -selection clipboard
+    elif [[ $1 == "blackback" ]]; then
+        # tesseract always wait colored on white images
+        convert - -set colorspace Gray -separate -average -negate - | tesseract - - -c page_separator="" | xclip -selection clipboard
+    fi
+}
+
 maimCmd () {
     if [[ $hidecursor == "yes" ]]; then
         cursor="--hidecursor"
@@ -354,15 +380,26 @@ maimCmd () {
       rect_border="-b ${slop_border}"
     fi
 
-    if [[ $1 == "delay" ]]; then
-      if [[ $2 == "area" ]]; then maim $cursor ${rect_border} ${rect_color} -s -d ${delay} "${img_path}/${3}";
-        elif [[ $2 == "fullscreen" ]]; then maim $cursor -g $(xininfo -mon-width)x$(xininfo -mon-height)+$(xininfo -mon-x)+$(xininfo -mon-y) -d ${delay} "${img_path}/${3}";
-        elif [[ $2 == "fullscreenAll" ]]; then maim $cursor -d ${delay} "${img_path}/${3}"; fi
-    elif [[ $1 == "nodelay" ]]; then
-        if [[ $2 == "area" ]]; then maim $cursor ${rect_border} ${rect_color} -s "${img_path}/${3}";
-        elif [[ $2 == "active" ]]; then maim -i $(xdotool getactivewindow) "${img_path}/${3}";
-        elif [[ $2 == "fullscreen" ]]; then maim $cursor -g $(xininfo -mon-width)x$(xininfo -mon-height)+$(xininfo -mon-x)+$(xininfo -mon-y) "${img_path}/${3}";
-        elif [[ $2 == "fullscreenAll" ]]; then maim $cursor "${img_path}/${3}"; fi
+    if [[ ! -z $delay && "$delay" != "0" ]]; then
+        maim_delay="-d ${delay}"
+    else
+        maim_delay=""
+    fi
+
+    if [[ ${2} == "-" ]]; then
+        img_output="/dev/stdout"
+    else
+        img_output="${img_path}/${2}"
+    fi
+
+    if [[ $1 == "area" ]]; then maim ${maim_delay} $cursor ${rect_border} ${rect_color} -s ${img_output};
+    elif [[ $1 == "active" ]]; then maim ${maim_delay} -i $(xdotool getactivewindow) ${img_output};
+    elif [[ $1 == "fullscreen" ]]; then maim ${maim_delay} $cursor -g $(xininfo -mon-width)x$(xininf3 -mon-height)+$(xininfo -mon-x)+$(xininfo -mon-y) ${img_output};
+    elif [[ $1 == "fullscreenAll" ]]; then maim ${maim_delay} $cursor ${img_output};
+    fi
+
+    if [[ ! -z "${delay}" && "${delay}" != "0" ]]; then
+        notify-send -a "teiler" -t 1000 "teiler" "Chick!";
     fi
 }
 
@@ -427,10 +464,10 @@ elif [[ $1 == "--quick" ]]; then
     if [[ $2 == "image" ]]; then
       check_img_path
       filename="${img_filemask}"
-      if [[ $3 == "area" ]]; then maimCmd nodelay area "${filename}" && cd "${img_path}" && teiler_helper --upload image "${filename}"
-      elif [[ $3 == "active" ]]; then maimCmd nodelay active "${filename}" && cd "${img_path}" && teiler_helper --upload image "${filename}"
-      elif [[ $3 == "fullscreen" ]]; then maimCmd nodelay fullscreen "${filename}" && cd "${img_path}" && teiler_helper --upload image "${filename}"
-      elif [[ $3 == "all" ]]; then maimCmd nodelay fullscreenAll "${filename}" && cd "${img_path}" && teiler_helper --upload image "${filename}"
+      if [[ $3 == "area" ]]; then maimCmd area "${filename}" && cd "${img_path}" && teiler_helper --upload image "${filename}"
+      elif [[ $3 == "active" ]]; then maimCmd active "${filename}" && cd "${img_path}" && teiler_helper --upload image "${filename}"
+      elif [[ $3 == "fullscreen" ]]; then maimCmd fullscreen "${filename}" && cd "${img_path}" && teiler_helper --upload image "${filename}"
+      elif [[ $3 == "all" ]]; then maimCmd fullscreenAll "${filename}" && cd "${img_path}" && teiler_helper --upload image "${filename}"
       fi
     elif [[ $2 == "video" ]]; then
       check_vid_path
@@ -444,9 +481,9 @@ elif [[ $1 == "--quick" ]]; then
 elif [[ $1 == "--quickcopy" ]]; then
     check_img_path;
     filename="${img_filemask}"
-    if [[ $2 == "area" ]]; then copyq & maimCmd nodelay area "${filename}" && cd "${img_path}" && copyq write image/png - < "${filename}"; copyq select 0
-    elif [[ $2 == "fullscreen" ]]; then copyq & maimCmd nodelay fullscreen "${filename}" && cd "${img_path}" && copyq write image/png - < "${filename}"; copyq select 0
-    elif [[ $2 == "all" ]]; then copyq & maimCmd nodelay fullscreenAll "${filename}" && cd "${img_path}" && copyq write image/png - < "${filename}"; copyq select 0
+    if [[ $2 == "area" ]]; then copyq & maimCmd area "${filename}" && cd "${img_path}" && copyq write image/png - < "${filename}"; copyq select 0
+    elif [[ $2 == "fullscreen" ]]; then copyq & maimCmd fullscreen "${filename}" && cd "${img_path}" && copyq write image/png - < "${filename}"; copyq select 0
+    elif [[ $2 == "all" ]]; then copyq & maimCmd fullscreenAll "${filename}" && cd "${img_path}" && copyq write image/png - < "${filename}"; copyq select 0
     fi
 elif [[ $1 == "--help" || $1 == "-h" ]]; then
     helpCmd

@@ -1,11 +1,11 @@
-# teiler - a little screenshot tool written in bash
+# heyteiler - a little screenshot tool written in bash
 
-teiler uses rofi to draw a menu which lets you
+heyteiler (forked from [teiler](https://github.com/carnager/teiler)) uses rofi to draw a menu which lets you
 choose between screenshots or screencasts.
 
 ## Screenshot
 
-![teiker](screenshot.png "teiler in action")
+![teiker](screenshot.png "heyteiler in action")
 
 ## Features
 * screenshots fullscreen/monitor/area
@@ -17,6 +17,7 @@ choose between screenshots or screencasts.
   + Editing
   + Uploading
 * Commandline interface for direct access to all features. Useful for hotkeys
+* Recognize text and put it in clipboard
 
 ## Dependencies:
 
@@ -35,4 +36,4 @@ choose between screenshots or screencasts.
 * openssh (http://www.openssh.com)
 * ix (http://ix.io)
 * s3 cli tools
-
+* tesseract (https://github.com/tesseract-ocr/tesseract)
