@@ -157,12 +157,12 @@ screenshotMenu () {
     if [[ $rofi_exit -eq 10 ]]; then
         delayPrompt
         if [[ $delay == "0" ]]; then maimCmd nodelay $mode "${filename}" && cd "${img_path}" && teiler_helper --upload image "${filename}" && exit
-        else notify-send -a "teiler" -t 1 "teiler" "Taking Screenshot in "$delay" seconds"; maimCmd delay $mode "${filename}" && cd "${img_path}" && teiler_helper --upload image "${filename}" && exit
+        else notify-send -a "teiler" -t 1000 "teiler" "Taking Screenshot in "$delay" seconds"; maimCmd delay $mode "${filename}" && cd "${img_path}" && teiler_helper --upload image "${filename}" && exit
         fi
     elif [[ $rofi_exit -eq 11 ]]; then
         delayPrompt
         if [[ $delay == "0" ]]; then maimCmd nodelay $mode "${filename}" && exit
-        else notify-send -a "teiler" -t 1 "teiler" "Taking Screenshot in "$delay" seconds"; maimCmd delay $mode "${filename}" 
+        else notify-send -a "teiler" -t 1000 "teiler" "Taking Screenshot in "$delay" seconds"; maimCmd delay $mode "${filename}"
         fi
     elif [[ $rofi_exit -eq 1 ]]; then
         exit
@@ -170,11 +170,11 @@ screenshotMenu () {
         delayPrompt
         if [[ $always_ul == "1" ]]; then
             if [[ $delay == "0" ]]; then maimCmd nodelay $mode "${filename}" && cd "${img_path}" && teiler_helper --upload image "${filename}" && exit
-            else notify-send -a "teiler" -t 1 "teiler" "Taking Screenshot in "$delay" seconds"; maimCmd delay $mode "${filename}" && cd "${img_path}" && teiler_helper --upload image "${filename}" && exit
+            else notify-send -a "teiler" -t 1000 "teiler" "Taking Screenshot in "$delay" seconds"; maimCmd delay $mode "${filename}" && cd "${img_path}" && teiler_helper --upload image "${filename}" && exit
             fi
         elif [[ $always_ul == "0" ]]; then
             if [[ $delay == "0" ]]; then maimCmd nodelay $mode "${filename}" && exit
-            else notify-send -a "teiler" -t 1 "teiler" "Taking Screenshot in "$delay" seconds"; maimCmd delay $mode "${filename}" 
+            else notify-send -a "teiler" -t 1000 "teiler" "Taking Screenshot in "$delay" seconds"; maimCmd delay $mode "${filename}"
             fi
         fi
     fi
@@ -198,11 +198,11 @@ screencastMenu () {
             exit
         fi
         if [[ $val -eq 10 ]]; then isRecording && stopRecording && sleep 2 && cd "${vid_path}" && teiler_helper --upload video "${filename}" && rm -f $XDG_RUNTIME_DIR/__teiler_cast_name;
-        elif [[ $val -eq 11 ]]; then isRecording && stopRecording; rm -f $XDG_RUNTIME_DIR/__teiler_cast_name; notify-send -a "teiler" "teiler" "Screencast saved"; exit
+        elif [[ $val -eq 11 ]]; then isRecording && stopRecording; rm -f $XDG_RUNTIME_DIR/__teiler_cast_name; notify-send -a "teiler" -t 1000 "teiler" "Screencast saved"; exit
         elif [[ $val -eq 1 ]]; then exit
         elif [[ $val -eq 0 ]]; then
             if [[ $always_ul ]]; then isRecording && stopRecording && sleep 2 && cd "${vid_path}" && teiler_helper --upload video "${filename}";
-            elif [[ $always_ul == "0" ]]; then isRecording && stopRecording; rm -f $XDG_RUNTIME_DIR/__teiler_cast_name; notify-send -a "teiler" "teiler" "Screencast saved"; exit
+            elif [[ $always_ul == "0" ]]; then isRecording && stopRecording; rm -f $XDG_RUNTIME_DIR/__teiler_cast_name; notify-send -a "teiler" -t 1000 "teiler" "Screencast saved"; exit
             fi
         fi
 
@@ -271,7 +271,7 @@ stopRecording () {
         res=$(cat $XDG_RUNTIME_DIR/teiler_res)
     fi
     [[ -f $SCREENCAST_PIDFILE ]] && { pid=$(cat "$SCREENCAST_PIDFILE"); isRecording && kill "$pid"; rm "$SCREENCAST_PIDFILE"; }
-    notify-send -a "teiler" -t "1" "teiler" "Stopped recording"
+    notify-send -a "teiler" -t 1000 "teiler" "Stopped recording"
     if [[ -z $rate ]]; then
         output=$(xininfo -name); xrandr --output "$output" --mode "$res"; rm -f $XDG_RUNTIME_DIR/teiler_res; return 0
     else
@@ -291,11 +291,11 @@ slopCmd () {
 ffmpegCmd () {
     round() {
         echo $(( ${1:?need one argument} / 2 * 2))
-    } 
+    }
 
     xres=$(echo "$res" | awk -F 'x' '{ print $1 }')
     yres=$(echo "$res" | awk -F 'x' '{ print $2 }')
-  
+
     if [[ -n $res ]]; then
       res_now="$(xininfo -mon-size | sed 's/ /x/')"
     else
@@ -319,7 +319,7 @@ ffmpegCmd () {
         else ffmpeg -f x11grab ${border} -s $res -i $ffmpeg_display+$ffmpeg_offset $ffaudio $encopts "${vid_path}/${filename}" &
         fi
         echo "$!" > "$SCREENCAST_PIDFILE"
-        notify-send -a "teiler" -t "1" "teiler" "Screencast started"
+        notify-send -a "teiler" -t 1000 "teiler" "Screencast started"
     elif [[ $1 == "area" ]]; then
         read -r X Y W H G ID < <(slop -f "%x %y %w %h %g %i")
         X=$(round $X)
@@ -333,7 +333,7 @@ ffmpegCmd () {
         else ffmpeg -f x11grab ${border} -s "$W"x"$H" -i $ffmpeg_display+$X,$Y $ffaudio $rect_encopts "${vid_path}/${filename}" &
         fi
         echo "$!" > "$SCREENCAST_PIDFILE"
-        notify-send -a "teiler" -t "1" "teiler" "Screencast started"
+        notify-send -a "teiler" -t 1000 "teiler" "Screencast started"
     fi
 }
 
@@ -453,4 +453,3 @@ elif [[ $1 == "--help" || $1 == "-h" ]]; then
 else
     check_img_path; mainMenu
 fi
-
