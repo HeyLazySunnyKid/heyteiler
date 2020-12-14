@@ -113,7 +113,6 @@ mainMenu () {
   then
     HELP="<span color='$help_color'>${upload}: Upload | ${save}: No Upload</span>"
     menu=$(echo -e "< Exit\n---\n"$STATE_RECORDING"" | _rofi -dmenu -u 2 -p "teiler > ")
-    echo "$menu" >> ~/teiler.log # debug
     val=$?
     if [[ $val -eq 1 ]]
     then
@@ -488,5 +487,5 @@ elif [[ $1 == "--quickcopy" ]]; then
 elif [[ $1 == "--help" || $1 == "-h" ]]; then
     helpCmd
 else
-    check_img_path; mainMenu
+    check_img_path; check_vid_path; mainMenu
 fi
