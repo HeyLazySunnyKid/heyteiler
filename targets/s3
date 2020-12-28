@@ -1,0 +1,42 @@
+#!/bin/bash
+
+s3cmd_options=""
+# s3 target parametrs
+s3cmd_bucket=BUCKET
+s3cmd_image_path="s3://${s3cmd_bucket}/Pictures/Screenshots/$(date +'%m.%Y')"
+s3cmd_video_path="s3://${s3cmd_bucket}/Videos/Screencasts/$(date +'%m.%Y')"
+s3cmd_text_path="s3://${s3cmd_bucket}/Documents/ClipboardSaves/$(date +'%m.%Y')"
+
+##### Advanced Block #####
+
+# Sometimes files put on web-server over s3cmd, so your filepath
+# may changed on some http resource. So, here you may set
+# what to copy to clipboard when save_filepath=yes
+# {filename} replaced by filename
+s3cmd_image_filepath="${s3cmd_image_path}/{filename}"
+s3cmd_video_filepath="${s3cmd_video_path}/{filename}"
+s3cmd_text_filepath="${s3cmd_text_path}/{filename}"
+
+### Qaulity Screencast settings ###
+
+# It may be usefull to change qulity of screencast for diffrent targets
+# If you don't care about video size just don't touch this settings :)
+
+# Only for filename, see video_filemask in  ~/.config/teiler/config
+ffmpeg_type="mp4" 
+# ffmpeg video capture settings for fullscreen mode (read more in ffmpeg docs)
+ffmpeg_video_fullscreen="-f pulse -ac 2 -i default -r 30 -c:v libx264 -preset slow -crf 18 -c:a libvorbis "
+# sometimes it is usefull to change settings for area mode
+ffmpeg_video_area="${ffmpeg_video_fullscreen}"
+
+# You may change screen resolution for this target (it will changed back after
+# stop recording)
+#resolution=800x600
+
+s3_bucket=
+s3_path_img=path/to/images
+s3_path_vid=path/to/videos
+s3_path_paste=path/to/pastes
+s3_http_img=http://S3_DOMAIN/path/to/images
+s3_http_vid=http://S3_DOMAIN/path/to/videos
+s3_http_paste=http://S3_DOMAIN/path/to/pastes

@@ -27,13 +27,12 @@ choose between screenshots or screencasts.
 * xclip
 * maim (https://github.com/naelstrof/maim)
 * slop (https://github.com/naelstrof/slop)
-* copyq (https://github.com/hluk/CopyQ)
+* tesseract (https://github.com/tesseract-ocr/tesseract)
+* ImageMagic 
 
 ## Optional Dependencies
 
 * imgurbash2 (https://github.com/ram-on/imgurbash2)
-* filebin (http://git.server-speed.net/users/flo/filebin)
 * openssh (http://www.openssh.com)
 * ix (http://ix.io)
 * s3 cli tools
-* tesseract (https://github.com/tesseract-ocr/tesseract)
