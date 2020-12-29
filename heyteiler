@@ -210,7 +210,7 @@ targetPrompt () {
     if [[ "$_prompt_type" == "Image" ]]; then
         _posible_target_types="local|scp|s3|imgur|clipboard"
         # Types allowed without any settings
-        _default_target_types="imgur|filebin|clipboard"
+        _default_target_types="imgur|clipboard"
     elif [[ "$_prompt_type" == "Video" ]]; then
         _posible_target_types="local|scp|s3"
         _default_target_types=""
@@ -236,6 +236,10 @@ targetPrompt () {
     fi
 
     result_target=$(echo -e "$_targets" | _rofi -dmenu -p "${_prompt_type} Target >")
+    val=$?
+    if [[ "$val" != 0 ]]; then
+        return
+    fi
     # Source target
     if [[ -f "${source_path}/targets/${result_target}" ]]; then
         source "${source_path}/targets/${result_target}"
