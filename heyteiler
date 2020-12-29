@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 
 # Source config files
-if [[ -f "./teiler.conf" ]]; then
+if [[ -f "./heyteiler.conf" ]]; then
     source_path='.'
-elif [[ -f "$HOME/.config/teiler/teiler.conf" ]]; then
-    source_path="$HOME/teiler"
-elif [[ -f "/etc/teiler/teiler.conf" ]]; then
-    source_path="/etc/teiler"
+elif [[ -f "$HOME/.config/heyteiler/heyteiler.conf" ]]; then
+    source_path="$HOME/heyteiler"
+elif [[ -f "/etc/heyteiler/heyteiler.conf" ]]; then
+    source_path="/etc/heyteiler"
 else
-    echo "ERROR: required teiler.conf not found"
+    echo "ERROR: required heyteiler.conf not found"
     exit
 fi
 
@@ -19,7 +19,7 @@ else
     exit
 fi
 # Source config after local target
-source "${source_path}/teiler.conf"
+source "${source_path}/heyteiler.conf"
 
 # Check if video is recording now
 if [ -z "$XDG_RUNTIME_DIR" ]; then
@@ -28,22 +28,30 @@ if [ -z "$XDG_RUNTIME_DIR" ]; then
     trap 'rm -rf $TMPDIR; exit' INT QUIT HUP TERM 0
 fi
 
-teiler_history_file="${source_path}/.teiler.history"
+heyteiler_history_file="${HOME}/.heyteiler.history"
 
-teiler_name_file="${XDG_RUNTIME_DIR}/__teiler_video_name"
-teiler_pid_file="${XDG_RUNTIME_DIR}/__teiler_cast_pid"
-teiler_resolution_file="${XDG_RUNTIME_DIR}/__teiler_resolution"
-teiler_target_file="${XDG_RUNTIME_DIR}/__teiler_target"
+heyteiler_name_file="${XDG_RUNTIME_DIR}/__heyteiler_video_name"
+heyteiler_pid_file="${XDG_RUNTIME_DIR}/__heyteiler_cast_pid"
+heyteiler_resolution_file="${XDG_RUNTIME_DIR}/__heyteiler_resolution"
+heyteiler_target_file="${XDG_RUNTIME_DIR}/__heyteiler_target"
 
 
 video_recording="no"
-if [[ -f "$teiler_pid_file" ]]; then
+if [[ -f "$heyteiler_pid_file" ]]; then
     video_recording="yes"
 fi
 
 # Add default rofi options
 _rofi () {
     rofi "${rofi_options}" "$@"
+}
+
+_heyteiler_helper () {
+    if [[ -x "${source_path}/heyteiler_helper" ]]; then
+        "${source_path}/heyteiler_helper" "$@"
+    else
+        "heyteiler_helper" "$@"
+    fi
 }
 
 check_path () {
@@ -74,13 +82,13 @@ fresh() {
 }
 
 showMenu () {
-    # Show teiler menu screen with help
+    # Show heyteiler menu screen with help
 
     _menu_name="$1"
     shift
     function_args=( "${@:1}" )
 
-    if [[ "${_menu_name}" == "teiler" ]]; then
+    if [[ "${_menu_name}" == "heyteiler" ]]; then
         _menu="< Exit\n---"
     else
         _menu="< Return to Main Menu\n---"
@@ -152,7 +160,7 @@ mainMenu () {
     fi
 
     menu=$( showMenu \
-        "teiler" \
+        "heyteiler" \
         "[ Screenshot ]>" \
         "$screencast_menu" \
         "[ SaveClipboard ]>" \
@@ -182,7 +190,6 @@ screenshotMenu () {
         "Return") mainMenu && exit;;
     esac
 
-    echo "${target_type}"
     # Save image to clipboard and exit
     if [[ "${target_type}" == "clipboard" ]]; then
         maimCmd "${delay}" "-" "${mode}" | xclip -selection clipboard -t image/png
@@ -192,7 +199,7 @@ screenshotMenu () {
     maimCmd "${delay}" "${image_path}/${image_filename}" "${mode}" 
     saveInHistory Image "${image_path}/${image_filename}"
     if [[ "$target_type" != "local" ]]; then
-        "${source_path}/teiler_helper" Image "${image_path}/${image_filename}" "${source_path}" "${image_target}"
+        _heyteiler_helper Image "${image_path}/${image_filename}" "${source_path}" "${image_target}"
     elif [[ "$save_filepath" == "yes" ]]; then
         echo "${img_output}" | xclip -selection clipboard
     fi
@@ -232,7 +239,7 @@ targetPrompt () {
     # Source target
     if [[ -f "${source_path}/targets/${result_target}" ]]; then
         source "${source_path}/targets/${result_target}"
-        source "${source_path}/teiler.conf"
+        source "${source_path}/heyteiler.conf"
     else
         target_type="${result_target}"
     fi
@@ -278,7 +285,7 @@ screencastMenu () {
         stopRecording
         saveInHistory Video "${video_filepath}"
         if [[ "$video_target" != "local" ]]; then
-            "${source_path}/teiler_helper" Video "$video_filepath" "${source_path}" "${video_target}"
+            _heyteiler_helper Video "$video_filepath" "${source_path}" "${video_target}"
         elif [[ "$save_filepath" == "yes" ]]; then
             echo "$video_filepath" | xclip -selection clipboard
         fi
@@ -292,7 +299,7 @@ screencastMenu () {
         "Target") targetPrompt Video && screencastMenu && exit;;
         "Return") mainMenu && exit;;
     esac
-    echo "$video_target" > "$teiler_target_file"
+    echo "$video_target" > "$heyteiler_target_file"
     ffmpegCmd "${video_path}/${video_filename}" $mode
 }
 
@@ -318,7 +325,7 @@ clipboardMenu () {
     clipboardCmd "${_text_output}"
     saveInHistory Text "${_text_output}"
     if [[ "$target_type" != "local" ]]; then
-        "${source_path}/teiler_helper" Text "${_text_output}" "${source_path}" "${text_target}"
+        _heyteiler_helper Text "${_text_output}" "${source_path}" "${text_target}"
         # TODO
     elif [[ "$save_filepath" == "yes" ]]; then
         echo "${_text_output}" | xclip -selection clipboard
@@ -348,7 +355,7 @@ typeHistoryMenu () {
         history_target="${text_target}"
     fi
 
-    _history_items=$( grep "${_history_type}" "${teiler_history_file}" | sed "s/${_history_type}\s\+//" | sed ':a;N;$!ba;s/\n/ /g')
+    _history_items=$( grep "${_history_type}" "${heyteiler_history_file}" | sed "s/${_history_type}\s\+//" | sed ':a;N;$!ba;s/\n/ /g')
     menu=$(showMenu "History ${_history_type}" ${_history_items} - Target ${history_target})
     case "${menu}" in
         Target) targetPrompt "${_history_type}" && typeHistoryMenu "${_history_type}" && exit;;
@@ -358,54 +365,51 @@ typeHistoryMenu () {
 
     if [[ "$target_type" == "local" ]]; then
         xdg-open "${menu}"
-    # Only images has target: clipboard in teiler
+    # Only images has target: clipboard in heyteiler
     elif [[ "$target_type" == "clipboard" ]]; then
         cat "${menu}" | xclip -selection clipboard -t image/png
     else
-        "${source_path}/teiler_helper" "${_history_type}" "${menu}" "${source_path}" "${history_target}"
+        _heyteiler_helper "${_history_type}" "${menu}" "${source_path}" "${history_target}"
     fi
 }
 
 saveInHistory () {
     _history_type="${1}"
     _item_path="${2}"
-    _history_tmp_file="${teiler_history_file}.tmp"
+    _history_tmp_file="${heyteiler_history_file}.tmp"
     echo "${_history_type} ${_item_path}" > "${_history_tmp_file}"
-    if [[ -f "${teiler_history_file}" ]]; then
-        head -199 "${teiler_history_file}" >> "${_history_tmp_file}"
+    if [[ -f "${heyteiler_history_file}" ]]; then
+        head -199 "${heyteiler_history_file}" >> "${_history_tmp_file}"
     fi
-    mv "${_history_tmp_file}" "${teiler_history_file}"
+    mv "${_history_tmp_file}" "${heyteiler_history_file}"
 }
 
 stopRecording () {
-    # TODO
-    echo "im here"
-    video_filepath="$(cat "${teiler_name_file}")"
-    video_pid="$(cat "${teiler_pid_file}")"
-    video_old_resolution="$(cat "${teiler_resolution_file}")"
-    video_target="$(cat "${teiler_target_file}")"
+    video_filepath="$(cat "${heyteiler_name_file}")"
+    video_pid="$(cat "${heyteiler_pid_file}")"
+    video_old_resolution="$(cat "${heyteiler_resolution_file}")"
+    video_target="$(cat "${heyteiler_target_file}")"
     if [[ -z "$video_filepath" ]] ||\
         [[ -z "$video_old_resolution" ]] ||\
         [[ -z "$video_target" ]]; then
             _witherrors=" with errors"
-            rm -f "$teiler_name_file"
-            rm -f "$teiler_resolution_file"
-            rm -f "$teiler_target_file"
+            rm -f "$heyteiler_name_file"
+            rm -f "$heyteiler_resolution_file"
+            rm -f "$heyteiler_target_file"
     fi
-    if [[ -f "${teiler_pid_file}" ]]; then
-        echo "tested pid: $(ps -p $video_pid)" >> ~/teiler.log
+    if [[ -f "${heyteiler_pid_file}" ]]; then
         if [[ -n "$(pgrep ffmpeg | grep "$video_pid")" ]]; then
             kill "$video_pid"
         else
             _witherrors=" with errors"
         fi
-        rm -f "${teiler_pid_file}"
+        rm -f "${heyteiler_pid_file}"
     fi
 
-    notify-send -a "teiler" -t 1000 "teiler" "Stopped recording${_witherrors}"
+    notify-send -a "heyteiler" -t 1000 "heyteiler" "Stopped recording${_witherrors}"
     output=$(xininfo -name);
     xrandr --output "$output" --mode "$video_old_resolution";
-    rm -f "${teiler_resolution_file}";
+    rm -f "${heyteiler_resolution_file}";
 
 }
 
@@ -420,7 +424,7 @@ ffmpegCmd () {
 
     # Prepare resolution
     resolution_now="$(xininfo -mon-size | sed 's/ /x/')"
-    echo "$resolution_now" > "${teiler_resolution_file}"
+    echo "$resolution_now" > "${heyteiler_resolution_file}"
     if [[ -z "$resolution" ]]; then
         resolution="$resolution_now"
     fi
@@ -433,26 +437,24 @@ ffmpegCmd () {
         sleep 5;
     fi
 
-    echo "${video_output}" > "${teiler_name_file}" # Safe video name for next time
+    echo "${video_output}" > "${heyteiler_name_file}" # Safe video name for next time
     if [[ "$2" == "fullscreen" ]]; then
         ffmpeg_display_opts="-s $resolution -i $(echo $DISPLAY)+$(xininfo -mon-x),$(xininfo -mon-y)"
         ffmpeg -f x11grab $ffmpeg_display_opts \
             ${ffmpeg_video_fullscreen} "${video_output}" &
-        echo "$!" > "${teiler_pid_file}"
-        notify-send -a "teiler" -t 1000 "teiler" "Screencast started"
+        echo "$!" > "${heyteiler_pid_file}"
+        notify-send -a "heyteiler" -t 1000 "heyteiler" "Screencast started"
     elif [[ $2 == "area" ]]; then
         read -r X Y W H G ID < <(slop ${slop_options} -f "%x %y %w %h %g %i")
         X=$(round $X)
         Y=$(round $Y)
         W=$(round $W)
         H=$(round $H)
-        echo "size: $X $Y $W $H" >> ~/t1iler.log # debug
         ffmpeg_display_opts="-s "$W"x"$H" -i $(echo $DISPLAY)+$X,$Y)"
         ffmpeg -show_region 1 -f x11grab $ffmpeg_display_opts \
             ${ffmpeg_video_area} "${video_output}" &
-        echo "$!" > "${teiler_pid_file}"
-        notify-send -a "teiler" -t 1000 "teiler" "Screencast started"
-        # TODO: Run slop again?
+        echo "$!" > "${heyteiler_pid_file}"
+        notify-send -a "heyteiler" -t 1000 "heyteiler" "Screencast started"
     fi
 }
 
@@ -463,7 +465,7 @@ tesseractCmd () {
         # tesseract always wait colored on white images
         convert - -set colorspace Gray -separate -average -negate - | tesseract -l "$recognize_language" - - -c page_separator="" | xclip -selection clipboard
     fi
-    notify-send -a "teiler" -t 1000 "teiler" "Recognition done!"
+    notify-send -a "heyteiler" -t 1000 "heyteiler" "Recognition done!"
 }
 
 maimCmd () {
@@ -504,7 +506,7 @@ maimCmd () {
     maim ${maim_mode_options} ${maim_delay} ${maim_cursor} ${img_output}
 
     if [[ "${1}" != "0" ]]; then
-        notify-send -a "teiler" -t 1000 "teiler" "Chick!";
+        notify-send -a "heyteiler" -t 1000 "heyteiler" "Chick!";
     fi
 }
 
@@ -517,7 +519,7 @@ delayPrompt () {
 
 echo_help () {
 cat << EOF
-teiler - a rofi-driven screen{shot,cast} utility
+heyteiler - a rofi-driven screen{shot,cast} utility
 
 screenshot [quick] [target] [delay]  
     open screenshots menu/make quick screenshot to target

@@ -22,7 +22,7 @@ scp_text_filepath="${scp_text_path}/{filename}"
 # It may be usefull to change qulity of screencast for diffrent targets
 # If you don't care about video size just don't touch this settings :)
 
-# Only for filename, see video_filemask in  ~/.config/teiler/config
+# Only for filename, see video_filemask in  ~/.config/heyteiler/config
 ffmpeg_type="mp4" 
 # ffmpeg video capture settings for fullscreen mode (read more in ffmpeg docs)
 ffmpeg_video_fullscreen="-f pulse -ac 2 -i default -r 30 -c:v libx264 -preset slow -crf 18 -c:a libvorbis "

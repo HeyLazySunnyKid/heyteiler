@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Example
-# teiler_helper image "${image_path}/${image_filename}" "${source_path}" "${image_target}"
+# heyteiler_helper image "${image_path}/${image_filename}" "${source_path}" "${image_target}"
 echo "vars: $@" # debug
 
 item_type="${1}"
@@ -16,14 +16,14 @@ if [[ -f  "${source_path}/${item_target}" ]]; then
 else
     target_type="${item_target}"
 fi
-source "${source_path}/teiler.conf"
+source "${source_path}/heyteiler.conf"
 
 scpCmd () {
     scp "${item_path}" "${scp_options}" "${1}/${item_basename}"
     if [[ "${save_filepath}" == "yes" ]]; then
         echo "${2}" | sed "s/{filepath}/${item_basename}/" | xclip -selection clipboard
     fi
-    notify-send -a "teiler" -t 1000 "Uploaded!" "${2}"
+    notify-send -a "heyteiler" -t 1000 "Uploaded!" "${2}"
 }
 
 s3cmdCmd () {
@@ -31,7 +31,7 @@ s3cmdCmd () {
     if [[ "${save_filepath}" == "yes" ]]; then
         echo "${2}" | sed "s/{filepath}/${item_basename}/" | xclip -selection clipboard
     fi
-    notify-send -a "teiler" -t 1000 "Uploaded!" "${2}"
+    notify-send -a "heyteiler" -t 1000 "Uploaded!" "${2}"
 }
 
 
@@ -44,13 +44,13 @@ ixioCmd () {
     fi
     # Generated filename: always copy path to clipboard
     echo "${url}/${lang}" | xclip -selection clipboard
-    notify-send -a "teiler" -t 1000 "Uploaded!" "${url}/${lang}"
+    notify-send -a "heyteiler" -t 1000 "Uploaded!" "${url}/${lang}"
 }
 
 imgurCmd () {
     # Generated filename: imgurbash2 save in clipboard itself
     url=$(imgurbash2 "${item_path}" | sed -E 's/^(\S+).*$/\1/')
-    notify-send -a "teiler" -t 1000 "Uploaded!" "${url}"
+    notify-send -a "heyteiler" -t 1000 "Uploaded!" "${url}"
 }
 
 if [[ "$target_type" == "scp" ]]; then
@@ -68,7 +68,7 @@ elif [[ "$target_type" == "s3" ]]; then
     esac
     exit
 elif [[ "$target_type" == "imgur" ]]; then
-    echo "Wtf 4" >> ~/teiler.log # debug
+    echo "Wtf 4" >> ~/heyteiler.log # debug
     case "$item_type" in 
         Image) imgurCmd; exit;;
     esac
