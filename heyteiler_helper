@@ -2,8 +2,6 @@
 
 # Example
 # heyteiler_helper image "${image_path}/${image_filename}" "${source_path}" "${image_target}"
-echo "vars: $@" # debug
-
 item_type="${1}"
 item_path="${2}"
 source_path="${3}"
@@ -36,15 +34,17 @@ s3cmdCmd () {
 
 
 ixioCmd () {
-    url=$(curl -F "f:1=@${item_path}" ix.io)
+    url=$(curl --no-progress-meter -F "f:1=@${item_path}" ix.io)
     extention=$(echo "${item_path}" | sed -E 's/^.*\.(\w+)$/\1/')
     lang=$(cat "${source_path}/pygmentize_types.txt" | sed -n -E "s/^(.*)\s+\.${extention}\$/\1/p")
-    if [[ "$lang" == "text" ]]; then
-        lang=""
-    fi
     # Generated filename: always copy path to clipboard
-    echo "${url}/${lang}" | xclip -selection clipboard
-    notify-send -a "heyteiler" -t 1000 "Uploaded!" "${url}/${lang}"
+    if [[ "$lang" == "text" ]]; then
+        url="${url}"
+    else
+        url="${url}/${lang}"
+    fi
+    echo "${url}" | xclip -selection clipboard
+    notify-send -a "heyteiler" -t 1000 "Uploaded!" "${url}"
 }
 
 imgurCmd () {

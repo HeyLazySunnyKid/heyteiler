@@ -180,15 +180,25 @@ mainMenu () {
 }
 
 screenshotMenu () {
-    menu=$(showMenu Screenshot Area Fullscreen "Fullscreen All" - Target "${image_target}" Delay "${delay}")
-    case "${menu}" in
-        "Area") mode="area";;
-        "Fullscreen") mode="fullscreen";;
-        "Fullscreen All") mode="fullscreenAll";;
-        "Target") targetPrompt Image && screenshotMenu && exit;;
-        "Delay") delayPrompt && screenshotMenu && exit;;
-        "Return") mainMenu && exit;;
-    esac
+    if [[ "${1}" == "quick" ]]; then
+        mode="${2}"
+        targetPrompt Image quick "${3}"
+        if [[ -n "${4}" ]]; then
+            delay="${4}"
+        else
+            delay=0
+        fi
+    else
+        menu=$(showMenu Screenshot Area Fullscreen "Fullscreen All" - Target "${image_target}" Delay "${delay}")
+        case "${menu}" in
+            "Area") mode="area";;
+            "Fullscreen") mode="fullscreen";;
+            "Fullscreen All") mode="fullscreenAll";;
+            "Target") targetPrompt Image && screenshotMenu && exit;;
+            "Delay") delayPrompt && screenshotMenu && exit;;
+            "Return") mainMenu && exit;;
+        esac
+    fi
 
     # Save image to clipboard and exit
     if [[ "${target_type}" == "clipboard" ]]; then
@@ -221,25 +231,27 @@ targetPrompt () {
         exit
     fi
 
-    __sed_added=$(echo -n "${_default_target_types}" | sed "s/|/\\\\n/g")
-
-    _targets=$(grep -l -R -E "target_type=(${_posible_target_types})" ./targets |\
-        sed 's%./targets/%%'
-    )
-
-    # Ensure that default targets only added only one time
-    if [[ -n "${__sed_added}" ]]; then
-        _targets=$(echo "$_targets" |\
-            grep -v -E "${_default_target_types}"  |\
-            sed -e "\$a${__sed_added}"
+    if [[ "${2}" == "quick" ]]; then
+        result_target="${3}"
+    else
+        __sed_added=$(echo -n "${_default_target_types}" | sed "s/|/\\\\n/g")
+        _targets=$(grep -l -R -E "target_type=(${_posible_target_types})" ./targets |\
+            sed 's%./targets/%%'
         )
+        # Ensure that default targets only added only one time
+        if [[ -n "${__sed_added}" ]]; then
+            _targets=$(echo "$_targets" |\
+                grep -v -E "${_default_target_types}"  |\
+                sed -e "\$a${__sed_added}"
+            )
+        fi
+        result_target=$(echo -e "$_targets" | _rofi -dmenu -p "${_prompt_type} Target >")
+        val=$?
+        if [[ "$val" != 0 ]]; then
+            return
+        fi
     fi
 
-    result_target=$(echo -e "$_targets" | _rofi -dmenu -p "${_prompt_type} Target >")
-    val=$?
-    if [[ "$val" != 0 ]]; then
-        return
-    fi
     # Source target
     if [[ -f "${source_path}/targets/${result_target}" ]]; then
         source "${source_path}/targets/${result_target}"
@@ -259,13 +271,30 @@ targetPrompt () {
 
 # Recognition
 recognitionMenu () {
-    menu=$(showMenu Colors "Colored on White" "Colored on Dark" - Language "$recognize_language")
-    case "${menu}" in
-        "Colored on White") colors="whiteback";;
-        "Colored on Dark") colors="darkback";;
-        "Language") languagePrompt && recognitionMenu && exit;;
-        "Return") mainMenu && exit;;
-    esac
+    if [[ "${1}" == "quick" ]] || [[ "${1}" == "q" ]]; then
+        case "${2}" in
+            w|white|whiteback) colors="whiteback";;
+            d|dark|darkback|b|black|blackback) colors="darkback";;
+        esac
+        if [[ -n "${3}" ]]; then
+            recognize_language="${3}"
+        else
+            recognize_language="${default_recognize_language}"
+        fi
+        if [[ -n "${4}" ]]; then
+            delay="${4}"
+        else
+            delay=0
+        fi
+    else
+        menu=$(showMenu Colors "Colored on White" "Colored on Dark" - Language "$recognize_language")
+        case "${menu}" in
+            "Colored on White") colors="whiteback";;
+            "Colored on Dark") colors="darkback";;
+            "Language") languagePrompt && recognitionMenu && exit;;
+            "Return") mainMenu && exit;;
+        esac
+    fi
     maimCmd 0 - area | tesseractCmd $colors;
 }
 
@@ -284,7 +313,7 @@ test_xrandr () {
 }
 
 screencastMenu () {
-    # Stop recording if it run
+    # Stop recording if it run and exit
     if [[ "$video_recording" == "yes" ]]; then
         stopRecording
         saveInHistory Video "${video_filepath}"
@@ -296,13 +325,18 @@ screencastMenu () {
         exit
     fi
 
-    menu=$(showMenu Screencast Area Fullscreen - Target "$video_target") # TODO: choose audio inputs
-    case "${menu}" in
-        "Area") mode="area";;
-        "Fullscreen") mode="fullscreen";;
-        "Target") targetPrompt Video && screencastMenu && exit;;
-        "Return") mainMenu && exit;;
-    esac
+    if [[ "${1}" == "quick" ]] || [[ "${1}" == "q" ]]; then
+        mode="${2}"
+        targetPrompt Video quick "${3}"
+    else
+        menu=$(showMenu Screencast Area Fullscreen - Target "$video_target") # TODO: choose audio inputs
+        case "${menu}" in
+            "Area") mode="area";;
+            "Fullscreen") mode="fullscreen";;
+            "Target") targetPrompt Video && screencastMenu && exit;;
+            "Return") mainMenu && exit;;
+        esac
+    fi
     echo "$video_target" > "$heyteiler_target_file"
     ffmpegCmd "${video_path}/${video_filename}" $mode
 }
@@ -314,13 +348,21 @@ clipboardMenu () {
     fi
 
     _texttypes=$(cat "${source_path}/pygmentize_types.txt" | awk '{print $1}' | sed ':a;N;$!ba;s/\n/ /g')
-    # _cliptext=$(xclip -o -selection clipboard)
-    menu=$(showMenu "Text Format" $_texttypes - Target "$text_target")
-    case "${menu}" in
-        Target) targetPrompt Text && clipboardMenu && exit;;
-        Return) mainMenu && exit;;
-        *) _filetype="${menu}";;
-    esac
+    if [[ "${1}" == "quick" ]] || [[ "${1}" == "q" ]]; then
+        targetPrompt Text quick "${2}"
+        if [[ -n "${3}" ]]; then
+            _filetype="${3}"
+        else
+            _filetype="text"
+        fi
+    else
+        menu=$(showMenu "Text Format" $_texttypes - Target "$text_target")
+        case "${menu}" in
+            Target) targetPrompt Text && clipboardMenu && exit;;
+            Return) mainMenu && exit;;
+            *) _filetype="${menu}";;
+        esac
+    fi
     _file_extention=$(cat "${source_path}/pygmentize_types.txt" | grep "^${_filetype}\s\+" | awk '{print $2}')
     # Replace extention
     _text_output=$(echo "${text_path}/${text_filename}" |\
@@ -359,13 +401,23 @@ typeHistoryMenu () {
         history_target="${text_target}"
     fi
 
-    _history_items=$( grep "${_history_type}" "${heyteiler_history_file}" | sed "s/${_history_type}\s\+//" | sed ':a;N;$!ba;s/\n/ /g')
-    menu=$(showMenu "History ${_history_type}" ${_history_items} - Target ${history_target})
-    case "${menu}" in
-        Target) targetPrompt "${_history_type}" && typeHistoryMenu "${_history_type}" && exit;;
-        Return) mainMenu && exit;;
-        *) echo "";; 
-    esac
+    if [[ "${2}" == "quick" ]] || [[ "${2}" == "q" ]]; then
+        # Set target
+        targetPrompt "${_history_type}" "quick" "${3}"
+        # Set last item
+        menu=$( grep "${_history_type}" "${heyteiler_history_file}" |\
+            sed "s/${_history_type}\s\+//" |\
+            head -1
+        )
+    else
+        _history_items=$( grep "${_history_type}" "${heyteiler_history_file}" | sed "s/${_history_type}\s\+//" | sed ':a;N;$!ba;s/\n/ /g')
+        menu=$(showMenu "History ${_history_type}" ${_history_items} - Target "${history_target}")
+        case "${menu}" in
+            Target) targetPrompt "${_history_type}" && typeHistoryMenu "${_history_type}" && exit;;
+            Return) mainMenu && exit;;
+            *) echo "";;
+        esac
+    fi
 
     if [[ "$target_type" == "local" ]]; then
         xdg-open "${menu}"
@@ -522,29 +574,70 @@ delayPrompt () {
 }
 
 echo_help () {
+targets_names=$(ls -1 "${source_path}/targets" |\
+    grep -v 'clipboard|imgur|ix.io' |\
+    sed '$aclipboard\nimgur\nix.io' |\
+    sed ':a;N;$!ba;s/\n/ /g')
+tlangs=$(tesseract --list-langs |\
+    grep -v ' ' |\
+    sed ':a;N;$!ba;s/\n/ /g')
+
 cat << EOF
 heyteiler - a rofi-driven screen{shot,cast} utility
 
-screenshot [quick] [target] [delay]  
+screenshot [quick mode target delay]  
     open screenshots menu/make quick screenshot to target
-screencast [quick] [target] [delay]  
+    alias: image i
+screencast [quick mode target]  
     open screencasts menu/quick screencast start or stop
-saveclipboard [quick] [target] [delay] 
+    alias: video v
+saveclipboard [quick target code] 
     open clipboard menu/quick save clipboard to target
-recognition [quick] [delay] 
+    alias: text t
+recognition [quick background language delay] 
     open recognition menu/quick recognize text to clipboard
-history [quick] [type] [target]
-    open history menu/quick send last item to target
+    alias: r
+history [type] [quick target]
+    open history [type] menu/quick send last [type] item to target
+    alias: h
+
+Options:
+    quick: quick|q
+    mode: area fullscreen fullscreenAll
+    delay: any number or skip
+    target: ${targets_names}
+    code: text bash python and many more...
+    background:  white|w dark|d
+    language: ${tlangs}
+    type: image|i video|v text|t
+
+Usefull examples:
+    # Make fullscreen screenshot with delay
+    heyteiler screenshot quick fullscreen local 3
+    # Fast copy area to clipboard
+    heyteiler screenshot quick area clipboard
+
+    # Put last screenshot image to clipboard
+    heyteiler history image quick clipboard
+    # Open last [h]istory [v]ideo [q]uick
+    heyteiler h v q local
 EOF
 }
 
-case $key in
-    quick) cmd_quick="--quick" ; shift;;
-    screenshot) shift; screenshotMenu "${cmd_quick}" "$@" && exit;;
-    screencast) shift; screencastMenu "${cmd_quick}" "$@" && exit;; # TODO
-    saveclipboard) shift; clipboardMenu "${cmd_quick}" "$@" && exit;; # TODO
-    recognition) shift; recognitionMenu "${cmd_quick}" "$@" && exit;; # TODO
-    history) shift; historyMenu "${cmd_quick}" "$@" && exit;; # TODO
+key="$1"
+case "$key" in
+    screenshot|image|i) shift; screenshotMenu "$@" && exit;;
+    screencast|video|v) shift; screencastMenu "$@" && exit;;
+    saveclipboard|text|t) shift; clipboardMenu "$@" && exit;;
+    recognition|r) shift; recognitionMenu "$@" && exit;; # TODO: quick
+    history|h) shift; if [[ -z "$1" ]]; then historyMenu; exit; fi;;
     -h|--help) echo_help && exit;;
     *) mainMenu && exit;;
+esac
+
+key2="$1"
+case "$key2" in
+    i|screenshot|image|Image) shift; typeHistoryMenu Image "$@" && exit;;
+    v|screencast|video|Video) shift; typeHistoryMenu Video "$@" && exit;;
+    t|saveclipboard|text|Text) shift; typeHistoryMenu Text "$@" && exit;;
 esac
