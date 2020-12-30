@@ -88,6 +88,7 @@ Also `local` target used for openning files from history.
 * xclip
 * slop (https://github.com/naelstrof/slop)
 * xdg-open
+* libnotify
 * UI dependency:
     * rofi (https://github.com/DaveDavenport/rofi)
 * Screenshot dependency

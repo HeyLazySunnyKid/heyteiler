@@ -60,14 +60,14 @@ check_path () {
     check_filepath="$2"
     if [[ ! -d "$check_filepath" ]]; then
         read -p "${check_what} path \"${check_filepath}\" does not exist. Create it? (Y/n)" -n 1 -r
+        echo "REPLY: $REPLY" >> "~/teiler.log"
         if [[ $REPLY =~ ^[Yy]$ ]] || [[ $REPLY == "" ]]; then
             mkdir -p "${check_filepath}"
         elif [[ $REPLY =~ ^[Nn]$ ]]; then
             exit
         else
-            echo "Please enter y or n"
-            check_path
-            exit
+            # create better than not create )
+            mkdir -p "${check_filepath}"
         fi
     fi
 }
@@ -211,7 +211,7 @@ screenshotMenu () {
     if [[ "$target_type" != "local" ]]; then
         _heyteiler_helper Image "${image_path}/${image_filename}" "${source_path}" "${image_target}"
     elif [[ "$save_filepath" == "yes" ]]; then
-        echo "${img_output}" | xclip -selection clipboard
+        echo "${image_path}/${image_filename}" | tr -d '\n' | xclip -selection clipboard
     fi
 }
 
@@ -235,8 +235,8 @@ targetPrompt () {
         result_target="${3}"
     else
         __sed_added=$(echo -n "${_default_target_types}" | sed "s/|/\\\\n/g")
-        _targets=$(grep -l -R -E "target_type=(${_posible_target_types})" ./targets |\
-            sed 's%./targets/%%'
+        _targets=$(grep -l -R -E "target_type=(${_posible_target_types})" "${source_path}/targets" |\
+            sed "s%${source_path}/targets/%%"
         )
         # Ensure that default targets only added only one time
         if [[ -n "${__sed_added}" ]]; then
@@ -320,7 +320,7 @@ screencastMenu () {
         if [[ "$video_target" != "local" ]]; then
             _heyteiler_helper Video "$video_filepath" "${source_path}" "${video_target}"
         elif [[ "$save_filepath" == "yes" ]]; then
-            echo "$video_filepath" | xclip -selection clipboard
+            echo "$video_filepath" | tr -d '\n' | xclip -selection clipboard
         fi
         exit
     fi
@@ -374,7 +374,7 @@ clipboardMenu () {
         _heyteiler_helper Text "${_text_output}" "${source_path}" "${text_target}"
         # TODO
     elif [[ "$save_filepath" == "yes" ]]; then
-        echo "${_text_output}" | xclip -selection clipboard
+        echo "${_text_output}" | tr -d '\n' | xclip -selection clipboard
     fi
 }
 
@@ -516,10 +516,10 @@ ffmpegCmd () {
 
 tesseractCmd () {
     if [[ "$1" == "whiteback" ]]; then
-        tesseract -l "$recognize_language" - - -c page_separator="" | xclip -selection clipboard
+        tesseract -l "$recognize_language" - - -c page_separator="" | tr -d '\n' | xclip -selection clipboard
     elif [[ "$1" == "darkback" ]]; then
         # tesseract always wait colored on white images
-        convert - -set colorspace Gray -separate -average -negate - | tesseract -l "$recognize_language" - - -c page_separator="" | xclip -selection clipboard
+        convert - -set colorspace Gray -separate -average -negate - | tesseract -l "$recognize_language" - - -c page_separator="" | tr -d '\n' | xclip -selection clipboard
     fi
     notify-send -a "heyteiler" -t 1000 "heyteiler" "Recognition done!"
 }
@@ -558,9 +558,7 @@ maimCmd () {
         maim_mode_options=""
     fi
 
-    [[ -f "${img_output}" ]] && rm "${img_output}" # rewrite file if exist
-    maim ${maim_mode_options} ${maim_delay} ${maim_cursor} ${img_output}
-
+    maim ${maim_mode_options} ${maim_delay} ${maim_cursor} "${img_output}"
     if [[ "${1}" != "0" ]]; then
         notify-send -a "heyteiler" -t 1000 "heyteiler" "Chick!";
     fi
