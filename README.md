@@ -85,6 +85,8 @@ Also `local` target used for openning files from history.
 
 ## Dependencies:
 
+Choose dependencies based on necessary features:
+
 * xclip
 * slop (https://github.com/naelstrof/slop)
 * xdg-open
