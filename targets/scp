@@ -1,0 +1,34 @@
+#!/bin/bash
+
+scp_options="-P 22"
+# scp target parametrs
+scp_host=HOSTNAME
+scp_image_path="${scp_host}:Pictures/Screenshots/$(date +'%m.%Y')"
+scp_video_path="${scp_host}:Videos/Screencasts/$(date +'%m.%Y')"
+scp_text_path="${scp_host}:Documents/ClipboardSaves/$(date +'%m.%Y')"
+
+##### Advanced Block #####
+
+# Sometimes you may want to put files on web-server over scp, so your filepath
+# may changed on http resource, so here you may set
+# what to copy to clipboard when save_filepath=yes
+# {filename} replaced by filename
+scp_image_filepath="${scp_image_path}/{filename}"
+scp_video_filepath="${scp_video_path}/{filename}"
+scp_text_filepath="${scp_text_path}/{filename}"
+
+### Qaulity Screencast settings ###
+
+# It may be usefull to change qulity of screencast for diffrent targets
+# If you don't care about video size just don't touch this settings :)
+
+# Only for filename, see video_filemask in  ~/.config/heyteiler/config
+ffmpeg_type="mp4" 
+# ffmpeg video capture settings for fullscreen mode (read more in ffmpeg docs)
+ffmpeg_video_fullscreen="-f pulse -ac 2 -i default -r 30 -c:v libx264 -preset slow -crf 18 -c:a libvorbis "
+# sometimes it is usefull to change settings for area mode
+ffmpeg_video_area="${ffmpeg_video_fullscreen}"
+
+# You may change screen resolution for this target (it will changed back after
+# stop recording)
+#resolution=800x600

@@ -1,0 +1,641 @@
+#!/usr/bin/env bash
+
+# Source config files
+if [[ -f "./heyteiler.conf" ]]; then
+    source_path='.'
+elif [[ -f "$HOME/.config/heyteiler/heyteiler.conf" ]]; then
+    source_path="$HOME/heyteiler"
+elif [[ -f "/etc/heyteiler/heyteiler.conf" ]]; then
+    source_path="/etc/heyteiler"
+else
+    echo "ERROR: required heyteiler.conf not found"
+    exit
+fi
+
+if [[ -f "${source_path}/targets/local" ]]; then
+    source "${source_path}/targets/local"
+else
+    echo "ERROR: required '${source_path}/targets/local' not found"
+    exit
+fi
+# Source config after local target
+source "${source_path}/heyteiler.conf"
+
+# Check if video is recording now
+if [ -z "$XDG_RUNTIME_DIR" ]; then
+    TMPDIR=$(mktemp -d)
+    XDG_RUNTIME_DIR=$TMPDIR
+    trap 'rm -rf $TMPDIR; exit' INT QUIT HUP TERM 0
+fi
+
+heyteiler_history_file="${HOME}/.heyteiler.history"
+
+heyteiler_name_file="${XDG_RUNTIME_DIR}/__heyteiler_video_name"
+heyteiler_pid_file="${XDG_RUNTIME_DIR}/__heyteiler_cast_pid"
+heyteiler_resolution_file="${XDG_RUNTIME_DIR}/__heyteiler_resolution"
+heyteiler_target_file="${XDG_RUNTIME_DIR}/__heyteiler_target"
+
+
+video_recording="no"
+if [[ -f "$heyteiler_pid_file" ]]; then
+    video_recording="yes"
+fi
+
+# Add default rofi options
+_rofi () {
+    rofi "${rofi_options}" "$@"
+}
+
+_heyteiler_helper () {
+    if [[ -x "${source_path}/heyteiler_helper" ]]; then
+        "${source_path}/heyteiler_helper" "$@"
+    else
+        "heyteiler_helper" "$@"
+    fi
+}
+
+check_path () {
+    # Autocreate $2 or ask in console
+    check_what="$1"
+    check_filepath="$2"
+    if [[ ! -d "$check_filepath" ]]; then
+        read -p "${check_what} path \"${check_filepath}\" does not exist. Create it? (Y/n)" -n 1 -r
+        echo "REPLY: $REPLY" >> "~/teiler.log"
+        if [[ $REPLY =~ ^[Yy]$ ]] || [[ $REPLY == "" ]]; then
+            mkdir -p "${check_filepath}"
+        elif [[ $REPLY =~ ^[Nn]$ ]]; then
+            exit
+        else
+            # create better than not create )
+            mkdir -p "${check_filepath}"
+        fi
+    fi
+}
+
+fresh() {
+    ### Return all custom values to there default
+    delay=0
+    image_target="${default_image_target}"
+    video_target="${default_video_target}"
+    text_target="${default_text_target}"
+    recognize_language="${default_recognize_language}"
+}
+
+showMenu () {
+    # Show heyteiler menu screen with help
+
+    _menu_name="$1"
+    shift
+    function_args=( "${@:1}" )
+
+    if [[ "${_menu_name}" == "heyteiler" ]]; then
+        _menu="< Exit\n---"
+    else
+        _menu="< Return to Main Menu\n---"
+    fi
+
+    _menu_help_args='no'
+    for _menu_arg in "${function_args[@]}"; do
+        if [[ "$_menu_arg" == "-" ]]; then
+            _menu_help_args='yes'
+            _menu_opts=()
+            continue
+        fi
+        if [[ "$_menu_help_args" == "no" ]]; then
+            # Make menu dmenu string
+            let "_num=_num+1"
+            _menu="${_menu}\n${_num} ${_menu_arg}"
+        elif [[ "$_menu_help_args" == "yes" ]]; then
+            # Make help dmenu string
+            if [[ -z "$_menu_opt" ]]; then
+                _menu_opt="${_menu_arg}"
+                continue
+            fi
+            _menu_value="${_menu_arg}"
+            if [[ -z "$_menu_help" ]]; then
+                # If start help message then add span
+                _menu_help="<span color='$help_color'>${_menu_help}${_menu_opt}"
+            else
+                _menu_help="${_menu_help} | ${_menu_opt}"
+            fi
+            if [[ -n "$_menu_value" ]]; then
+                _menu_help="${_menu_help}: ${_menu_value}"
+            fi
+            _menu_opts+=( "${_menu_opt}" )
+            _menu_opt=""
+            _menu_value=""
+        fi
+    done
+    _menu_help="${_menu_help}</span>"
+
+    if [[ ${_menu_help_args} == "yes" ]]; then
+        _menu_help_flag="-mesg"
+        _menu_help="$_menu_help"
+    else
+        _menu_help_flag=""
+        _menu_help=""
+    fi
+    _menu_result=$(echo -e "${_menu}" | _rofi "$_menu_help_flag" "$_menu_help"  -dmenu -p "${_menu_name} >")
+    _menu_exit=$?
+    case "${_menu_exit}" in
+        10) if [ -n "${_menu_opts[0]}" ]; then echo -n "${_menu_opts[0]}"; else echo -n "Return"; fi && exit ;;
+        11) if [ -n "${_menu_opts[1]}" ]; then echo -n "${_menu_opts[1]}"; else echo -n "Return"; fi && exit ;;
+        12) if [ -n "${_menu_opts[2]}" ]; then echo -n "${_menu_opts[2]}"; else echo -n "Return"; fi && exit ;;
+        13) if [ -n "${_menu_opts[3]}" ]; then echo -n "${_menu_opts[3]}"; else echo -n "Return"; fi && exit ;;
+    esac
+    _num=$(echo -n "$_menu_result" | sed -nE 's/([0-9]+)\s.*/\1/p')
+    if [[ -n "${_num}" ]]; then
+        echo -n "${function_args[_num-1]}"
+    else
+        echo -n "Return"
+    fi
+}
+
+mainMenu () {
+    fresh
+
+    screencast_menu="[ Screencast ]>"
+    if [[ "$video_recording" == "yes" ]]; then
+        screencast_menu="[ Stop Recording Screencast ]"
+    fi
+
+    menu=$( showMenu \
+        "heyteiler" \
+        "[ Screenshot ]>" \
+        "$screencast_menu" \
+        "[ SaveClipboard ]>" \
+        "[ Recognition ]>" \
+        "[ History ]>" 
+    )
+
+    case "${menu}" in
+        "[ Screenshot ]>") screenshotMenu && exit;;
+        "[ Screencast ]>") screencastMenu && exit;;
+        "[ Stop Recording Screencast ]") screencastMenu && exit;;
+        "[ SaveClipboard ]>") clipboardMenu && exit;;
+        "[ Recognition ]>") recognitionMenu && exit;;
+        "[ History ]>") historyMenu && exit;;
+        "Return") exit;;
+    esac
+}
+
+screenshotMenu () {
+    if [[ "${1}" == "quick" ]]; then
+        mode="${2}"
+        targetPrompt Image quick "${3}"
+        if [[ -n "${4}" ]]; then
+            delay="${4}"
+        else
+            delay=0
+        fi
+    else
+        menu=$(showMenu Screenshot Area Fullscreen "Fullscreen All" - Target "${image_target}" Delay "${delay}")
+        case "${menu}" in
+            "Area") mode="area";;
+            "Fullscreen") mode="fullscreen";;
+            "Fullscreen All") mode="fullscreenAll";;
+            "Target") targetPrompt Image && screenshotMenu && exit;;
+            "Delay") delayPrompt && screenshotMenu && exit;;
+            "Return") mainMenu && exit;;
+        esac
+    fi
+
+    # Save image to clipboard and exit
+    if [[ "${target_type}" == "clipboard" ]]; then
+        maimCmd "${delay}" "-" "${mode}" | xclip -selection clipboard -t image/png
+        exit
+    fi
+
+    maimCmd "${delay}" "${image_path}/${image_filename}" "${mode}" 
+    saveInHistory Image "${image_path}/${image_filename}"
+    if [[ "$target_type" != "local" ]]; then
+        _heyteiler_helper Image "${image_path}/${image_filename}" "${source_path}" "${image_target}"
+    elif [[ "$save_filepath" == "yes" ]]; then
+        echo "${image_path}/${image_filename}" | tr -d '\n' | xclip -selection clipboard
+    fi
+}
+
+targetPrompt () {
+    _prompt_type="${1}"
+    if [[ "$_prompt_type" == "Image" ]]; then
+        _posible_target_types="local|scp|s3|imgur|clipboard"
+        # Types allowed without any settings
+        _default_target_types="imgur|clipboard"
+    elif [[ "$_prompt_type" == "Video" ]]; then
+        _posible_target_types="local|scp|s3"
+        _default_target_types=""
+    elif [[ "$_prompt_type" == "Text" ]]; then
+        _posible_target_types="local|scp|ix.io"
+        _default_target_types="ix.io"
+    else
+        exit
+    fi
+
+    if [[ "${2}" == "quick" ]]; then
+        result_target="${3}"
+    else
+        __sed_added=$(echo -n "${_default_target_types}" | sed "s/|/\\\\n/g")
+        _targets=$(grep -l -R -E "target_type=(${_posible_target_types})" "${source_path}/targets" |\
+            sed "s%${source_path}/targets/%%"
+        )
+        # Ensure that default targets only added only one time
+        if [[ -n "${__sed_added}" ]]; then
+            _targets=$(echo "$_targets" |\
+                grep -v -E "${_default_target_types}"  |\
+                sed -e "\$a${__sed_added}"
+            )
+        fi
+        result_target=$(echo -e "$_targets" | _rofi -dmenu -p "${_prompt_type} Target >")
+        val=$?
+        if [[ "$val" != 0 ]]; then
+            return
+        fi
+    fi
+
+    # Source target
+    if [[ -f "${source_path}/targets/${result_target}" ]]; then
+        source "${source_path}/targets/${result_target}"
+        source "${source_path}/heyteiler.conf"
+    else
+        target_type="${result_target}"
+    fi
+
+    if [[ "$_prompt_type" == "Image" ]]; then
+        image_target="${result_target}"
+    elif [[ "$_prompt_type" == "Video" ]]; then
+        video_target="${result_target}"
+    elif [[ "$_prompt_type" == "Text" ]];then
+        text_target="${result_target}"
+    fi
+}
+
+# Recognition
+recognitionMenu () {
+    if [[ "${1}" == "quick" ]] || [[ "${1}" == "q" ]]; then
+        case "${2}" in
+            w|white|whiteback) colors="whiteback";;
+            d|dark|darkback|b|black|blackback) colors="darkback";;
+        esac
+        if [[ -n "${3}" ]]; then
+            recognize_language="${3}"
+        else
+            recognize_language="${default_recognize_language}"
+        fi
+        if [[ -n "${4}" ]]; then
+            delay="${4}"
+        else
+            delay=0
+        fi
+    else
+        menu=$(showMenu Colors "Colored on White" "Colored on Dark" - Language "$recognize_language")
+        case "${menu}" in
+            "Colored on White") colors="whiteback";;
+            "Colored on Dark") colors="darkback";;
+            "Language") languagePrompt && recognitionMenu && exit;;
+            "Return") mainMenu && exit;;
+        esac
+    fi
+    maimCmd 0 - area | tesseractCmd $colors;
+}
+
+languagePrompt () {
+    recognize_language=$(tesseract --list-langs | grep -v ' ' | _rofi -dmenu -p "Language >")
+}
+
+test_xrandr () {
+    if [[ -n $resolution ]]; then
+        output=$(xininfo -name)
+        xrandr --output "$output" --mode "$resolution" --dryrun || { 
+            echo "ERROR: Resolution "${resolution}" not available"
+            exit 1; 
+        }
+    fi
+}
+
+screencastMenu () {
+    # Stop recording if it run and exit
+    if [[ "$video_recording" == "yes" ]]; then
+        stopRecording
+        saveInHistory Video "${video_filepath}"
+        if [[ "$video_target" != "local" ]]; then
+            _heyteiler_helper Video "$video_filepath" "${source_path}" "${video_target}"
+        elif [[ "$save_filepath" == "yes" ]]; then
+            echo "$video_filepath" | tr -d '\n' | xclip -selection clipboard
+        fi
+        exit
+    fi
+
+    if [[ "${1}" == "quick" ]] || [[ "${1}" == "q" ]]; then
+        mode="${2}"
+        targetPrompt Video quick "${3}"
+    else
+        menu=$(showMenu Screencast Area Fullscreen - Target "$video_target") # TODO: choose audio inputs
+        case "${menu}" in
+            "Area") mode="area";;
+            "Fullscreen") mode="fullscreen";;
+            "Target") targetPrompt Video && screencastMenu && exit;;
+            "Return") mainMenu && exit;;
+        esac
+    fi
+    echo "$video_target" > "$heyteiler_target_file"
+    ffmpegCmd "${video_path}/${video_filename}" $mode
+}
+
+clipboardMenu () {
+    if [[ -z "$(xclip -o -selection clipboard -t TARGETS | grep 'UTF8_STRING')" ]]; then
+        echo "Only UTF8_STRING supported"
+        exit
+    fi
+
+    _texttypes=$(cat "${source_path}/pygmentize_types.txt" | awk '{print $1}' | sed ':a;N;$!ba;s/\n/ /g')
+    if [[ "${1}" == "quick" ]] || [[ "${1}" == "q" ]]; then
+        targetPrompt Text quick "${2}"
+        if [[ -n "${3}" ]]; then
+            _filetype="${3}"
+        else
+            _filetype="text"
+        fi
+    else
+        menu=$(showMenu "Text Format" $_texttypes - Target "$text_target")
+        case "${menu}" in
+            Target) targetPrompt Text && clipboardMenu && exit;;
+            Return) mainMenu && exit;;
+            *) _filetype="${menu}";;
+        esac
+    fi
+    _file_extention=$(cat "${source_path}/pygmentize_types.txt" | grep "^${_filetype}\s\+" | awk '{print $2}')
+    # Replace extention
+    _text_output=$(echo "${text_path}/${text_filename}" |\
+        sed -E "s/(.*)\.[^.]+/\1${_file_extention}/"
+    )
+    clipboardCmd "${_text_output}"
+    saveInHistory Text "${_text_output}"
+    if [[ "$target_type" != "local" ]]; then
+        _heyteiler_helper Text "${_text_output}" "${source_path}" "${text_target}"
+        # TODO
+    elif [[ "$save_filepath" == "yes" ]]; then
+        echo "${_text_output}" | tr -d '\n' | xclip -selection clipboard
+    fi
+}
+
+clipboardCmd () {
+    check_path SaveClipboard "$(dirname "$1")"
+    xclip -o -selection clipboard >> "$1"
+}
+
+historyMenu () {
+    menu=$(showMenu History Image Video Text)
+    case "${menu}" in
+        Image|Video|Text) typeHistoryMenu "${menu}" && exit;;
+        Return) mainMenu && exit;;
+    esac
+}
+
+typeHistoryMenu () {
+    _history_type="${1}"
+    if [[ "$_history_type" == "Image" ]]; then
+        history_target="${image_target}"
+    elif [[ "$_history_type" == "Video" ]]; then
+        history_target="${video_target}"
+    elif [[ "$_history_type" == "Text" ]]; then
+        history_target="${text_target}"
+    fi
+
+    if [[ "${2}" == "quick" ]] || [[ "${2}" == "q" ]]; then
+        # Set target
+        targetPrompt "${_history_type}" "quick" "${3}"
+        # Set last item
+        menu=$( grep "${_history_type}" "${heyteiler_history_file}" |\
+            sed "s/${_history_type}\s\+//" |\
+            head -1
+        )
+    else
+        _history_items=$( grep "${_history_type}" "${heyteiler_history_file}" | sed "s/${_history_type}\s\+//" | sed ':a;N;$!ba;s/\n/ /g')
+        menu=$(showMenu "History ${_history_type}" ${_history_items} - Target "${history_target}")
+        case "${menu}" in
+            Target) targetPrompt "${_history_type}" && typeHistoryMenu "${_history_type}" && exit;;
+            Return) mainMenu && exit;;
+            *) echo "";;
+        esac
+    fi
+
+    if [[ "$target_type" == "local" ]]; then
+        xdg-open "${menu}"
+    # Only images has target: clipboard in heyteiler
+    elif [[ "$target_type" == "clipboard" ]]; then
+        cat "${menu}" | xclip -selection clipboard -t image/png
+    else
+        _heyteiler_helper "${_history_type}" "${menu}" "${source_path}" "${history_target}"
+    fi
+}
+
+saveInHistory () {
+    _history_type="${1}"
+    _item_path="${2}"
+    _history_tmp_file="${heyteiler_history_file}.tmp"
+    echo "${_history_type} ${_item_path}" > "${_history_tmp_file}"
+    if [[ -f "${heyteiler_history_file}" ]]; then
+        head -199 "${heyteiler_history_file}" >> "${_history_tmp_file}"
+    fi
+    mv "${_history_tmp_file}" "${heyteiler_history_file}"
+}
+
+stopRecording () {
+    video_filepath="$(cat "${heyteiler_name_file}")"
+    video_pid="$(cat "${heyteiler_pid_file}")"
+    video_old_resolution="$(cat "${heyteiler_resolution_file}")"
+    video_target="$(cat "${heyteiler_target_file}")"
+    if [[ -z "$video_filepath" ]] ||\
+        [[ -z "$video_old_resolution" ]] ||\
+        [[ -z "$video_target" ]]; then
+            _witherrors=" with errors"
+            rm -f "$heyteiler_name_file"
+            rm -f "$heyteiler_resolution_file"
+            rm -f "$heyteiler_target_file"
+    fi
+    if [[ -f "${heyteiler_pid_file}" ]]; then
+        if [[ -n "$(pgrep ffmpeg | grep "$video_pid")" ]]; then
+            kill "$video_pid"
+        else
+            _witherrors=" with errors"
+        fi
+        rm -f "${heyteiler_pid_file}"
+    fi
+
+    notify-send -a "heyteiler" -t 1000 "heyteiler" "Stopped recording${_witherrors}"
+    output=$(xininfo -name);
+    xrandr --output "$output" --mode "$video_old_resolution";
+    rm -f "${heyteiler_resolution_file}";
+
+}
+
+ffmpegCmd () {
+    round() {
+        echo $(( ${1:?need one argument} / 2 * 2))
+    }
+    
+    video_output="${1}"
+    check_path "Video" "$(dirname ${video_output})"; 
+    [[ -f "${video_output}" ]] && rm "${video_output}" # rewrite file if exist
+
+    # Prepare resolution
+    resolution_now="$(xininfo -mon-size | sed 's/ /x/')"
+    echo "$resolution_now" > "${heyteiler_resolution_file}"
+    if [[ -z "$resolution" ]]; then
+        resolution="$resolution_now"
+    fi
+
+    if [[ "$resolution_now" != "$resolution" ]]; then 
+        # Change resolution before start video
+        test_xrandr
+        output=$(xininfo -name)
+        xrandr --output "$output" --mode "$resolution"
+        sleep 5;
+    fi
+
+    echo "${video_output}" > "${heyteiler_name_file}" # Safe video name for next time
+    if [[ "$2" == "fullscreen" ]]; then
+        ffmpeg_display_opts="-s $resolution -i $(echo $DISPLAY)+$(xininfo -mon-x),$(xininfo -mon-y)"
+        ffmpeg -f x11grab $ffmpeg_display_opts \
+            ${ffmpeg_video_fullscreen} "${video_output}" &
+        echo "$!" > "${heyteiler_pid_file}"
+        notify-send -a "heyteiler" -t 1000 "heyteiler" "Screencast started"
+    elif [[ $2 == "area" ]]; then
+        read -r X Y W H G ID < <(slop ${slop_options} -f "%x %y %w %h %g %i")
+        X=$(round $X)
+        Y=$(round $Y)
+        W=$(round $W)
+        H=$(round $H)
+        ffmpeg_display_opts="-s "$W"x"$H" -i $(echo $DISPLAY)+$X,$Y)"
+        ffmpeg -show_region 1 -f x11grab $ffmpeg_display_opts \
+            ${ffmpeg_video_area} "${video_output}" &
+        echo "$!" > "${heyteiler_pid_file}"
+        notify-send -a "heyteiler" -t 1000 "heyteiler" "Screencast started"
+    fi
+}
+
+tesseractCmd () {
+    if [[ "$1" == "whiteback" ]]; then
+        tesseract -l "$recognize_language" - - -c page_separator="" | tr -d '\n' | xclip -selection clipboard
+    elif [[ "$1" == "darkback" ]]; then
+        # tesseract always wait colored on white images
+        convert - -set colorspace Gray -separate -average -negate - | tesseract -l "$recognize_language" - - -c page_separator="" | tr -d '\n' | xclip -selection clipboard
+    fi
+    notify-send -a "heyteiler" -t 1000 "heyteiler" "Recognition done!"
+}
+
+maimCmd () {
+    # maimCmd delay path mode
+    #Examples:
+    # maimCmd 0 "/tmp/myimage.png" fullscreen
+    # maimCmd 5 "-" area
+
+
+    # Check settings
+    maim_cursor="--hidecursor"
+
+    # Check args
+    if [[ "${1}" == "0" ]]; then
+        maim_delay=""
+    else
+        maim_delay="-d ${1}"
+    fi
+
+    if [[ ${2} == "-" ]]; then
+        img_output="/dev/stdout"
+    else
+        img_output="${2}"
+        check_path "Image" "$(dirname ${img_output})"; 
+    fi
+
+    if [[ $3 == "area" ]]; then 
+        maim_mode_options="-s ${slop_options}"
+    elif [[ $3 == "active" ]]; then 
+        maim_mode_options="-i $(xdotool getactivewindow)"
+    elif [[ $3 == "fullscreen" ]]; then 
+        maim_mode_options="-g $(xininfo -mon-width)x$(xininfo -mon-height)+$(xininfo -mon-x)+$(xininfo -mon-y)"
+    elif [[ $3 == "fullscreenAll" ]]; then 
+        maim_mode_options=""
+    fi
+
+    maim ${maim_mode_options} ${maim_delay} ${maim_cursor} "${img_output}"
+    if [[ "${1}" != "0" ]]; then
+        notify-send -a "heyteiler" -t 1000 "heyteiler" "Chick!";
+    fi
+}
+
+delayPrompt () {
+    delay=$(echo -e "$(seq 0 10)" | _rofi -dmenu -p "Choose Delay > ")
+    if [[ -z "$delay" ]]; then
+        exit
+    fi
+}
+
+echo_help () {
+targets_names=$(ls -1 "${source_path}/targets" |\
+    grep -v 'clipboard|imgur|ix.io' |\
+    sed '$aclipboard\nimgur\nix.io' |\
+    sed ':a;N;$!ba;s/\n/ /g')
+tlangs=$(tesseract --list-langs |\
+    grep -v ' ' |\
+    sed ':a;N;$!ba;s/\n/ /g')
+
+cat << EOF
+heyteiler - a rofi-driven screen{shot,cast} utility
+
+screenshot [quick mode target delay]  
+    open screenshots menu/make quick screenshot to target
+    alias: image i
+screencast [quick mode target]  
+    open screencasts menu/quick screencast start or stop
+    alias: video v
+saveclipboard [quick target code] 
+    open clipboard menu/quick save clipboard to target
+    alias: text t
+recognition [quick background language delay] 
+    open recognition menu/quick recognize text to clipboard
+    alias: r
+history [type] [quick target]
+    open history [type] menu/quick send last [type] item to target
+    alias: h
+
+Options:
+    quick: quick|q
+    mode: area fullscreen fullscreenAll
+    delay: any number or skip
+    target: ${targets_names}
+    code: text bash python and many more...
+    background:  white|w dark|d
+    language: ${tlangs}
+    type: image|i video|v text|t
+
+Usefull examples:
+    # Make fullscreen screenshot with delay
+    heyteiler screenshot quick fullscreen local 3
+    # Fast copy area to clipboard
+    heyteiler screenshot quick area clipboard
+
+    # Put last screenshot image to clipboard
+    heyteiler history image quick clipboard
+    # Open last [h]istory [v]ideo [q]uick
+    heyteiler h v q local
+EOF
+}
+
+key="$1"
+case "$key" in
+    screenshot|image|i) shift; screenshotMenu "$@" && exit;;
+    screencast|video|v) shift; screencastMenu "$@" && exit;;
+    saveclipboard|text|t) shift; clipboardMenu "$@" && exit;;
+    recognition|r) shift; recognitionMenu "$@" && exit;; # TODO: quick
+    history|h) shift; if [[ -z "$1" ]]; then historyMenu; exit; fi;;
+    -h|--help) echo_help && exit;;
+    *) mainMenu && exit;;
+esac
+
+key2="$1"
+case "$key2" in
+    i|screenshot|image|Image) shift; typeHistoryMenu Image "$@" && exit;;
+    v|screencast|video|Video) shift; typeHistoryMenu Video "$@" && exit;;
+    t|saveclipboard|text|Text) shift; typeHistoryMenu Text "$@" && exit;;
+esac

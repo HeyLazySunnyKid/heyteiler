@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+
+# Example
+# heyteiler_helper image "${image_path}/${image_filename}" "${source_path}" "${image_target}"
+item_type="${1}"
+item_path="${2}"
+source_path="${3}"
+item_target="${4}"
+
+item_basename="$(basename ${item_path})"
+
+if [[ -f  "${source_path}/${item_target}" ]]; then
+    source "${source_path}/${item_target}"
+else
+    target_type="${item_target}"
+fi
+source "${source_path}/heyteiler.conf"
+
+scpCmd () {
+    scp "${item_path}" "${scp_options}" "${1}/${item_basename}"
+    if [[ "${save_filepath}" == "yes" ]]; then
+        echo "${2}" | sed "s/{filepath}/${item_basename}/" | xclip -selection clipboard
+    fi
+    notify-send -a "heyteiler" -t 1000 "Uploaded!" "${2}"
+}
+
+s3cmdCmd () {
+    s3cmd --no-progress "${s3cmd_options}" put "${item_path}" "${1}/${item_basename}"
+    if [[ "${save_filepath}" == "yes" ]]; then
+        echo "${2}" | sed "s/{filepath}/${item_basename}/" | xclip -selection clipboard
+    fi
+    notify-send -a "heyteiler" -t 1000 "Uploaded!" "${2}"
+}
+
+
+ixioCmd () {
+    url=$(curl --no-progress-meter -F "f:1=@${item_path}" ix.io)
+    extention=$(echo "${item_path}" | sed -E 's/^.*\.(\w+)$/\1/')
+    lang=$(cat "${source_path}/pygmentize_types.txt" | sed -n -E "s/^(.*)\s+\.${extention}\$/\1/p")
+    # Generated filename: always copy path to clipboard
+    if [[ "$lang" == "text" ]]; then
+        url="${url}"
+    else
+        url="${url}/${lang}"
+    fi
+    echo "${url}" | xclip -selection clipboard
+    notify-send -a "heyteiler" -t 1000 "Uploaded!" "${url}"
+}
+
+imgurCmd () {
+    # Generated filename: imgurbash2 save in clipboard itself
+    url=$(imgurbash2 "${item_path}" | sed -E 's/^(\S+).*$/\1/')
+    notify-send -a "heyteiler" -t 1000 "Uploaded!" "${url}"
+}
+
+if [[ "$target_type" == "scp" ]]; then
+    case "$item_type" in
+        Image) scpCmd "${scp_image_path}" "${scp_image_filepath}"; exit;;
+        Video) scpCmd "${scp_video_path}" "${scp_video_filepath}"; exit;;
+        Text)  scpCmd "${scp_text_path}" "${scp_text_filepath}"; exit;;
+    esac
+    exit
+elif [[ "$target_type" == "s3" ]]; then
+    case "$item_type" in
+        Image) s3cmdCmd "${s3cmd_image_path}" "${s3cmd_image_filepath}"; exit;;
+        Video) s3cmdCmd "${s3cmd_video_path}" "${s3cmd_video_filepath}"; exit;;
+        Text)  s3cmdCmd "${s3cmd_text_path}" "${s3cmd_text_filepath}"; exit;;
+    esac
+    exit
+elif [[ "$target_type" == "imgur" ]]; then
+    echo "Wtf 4" >> ~/heyteiler.log # debug
+    case "$item_type" in 
+        Image) imgurCmd; exit;;
+    esac
+    exit
+elif [[ "$target_type" == "ix.io" ]]; then
+    case "$item_type" in
+        Text) ixioCmd; exit;;
+    esac
+    exit
+fi
